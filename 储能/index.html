@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BESS 专业知识测验</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        }
+        .quiz-option {
+            transition: all 0.2s ease-in-out;
+        }
+        .quiz-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .quiz-option.selected {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: #eff6ff; /* blue-50 */
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .result-correct {
+            background-color: #f0fdf4; /* green-50 */
+            border-left: 4px solid #22c55e; /* green-500 */
+        }
+        .result-incorrect {
+            background-color: #fef2f2; /* red-50 */
+            border-left: 4px solid #ef4444; /* red-500 */
+        }
+        .mark-btn.marked .fa-flag {
+            font-weight: 900; /* Use fas style */
+            color: #f59e0b; /* amber-500 */
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex items-center justify-center min-h-screen p-4">
+
+    <div id="app-container" class="w-full max-w-2xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="p-8 text-center">
+            <div class="mb-6">
+                <i class="fas fa-battery-full text-6xl text-blue-500"></i>
+            </div>
+            <h1 class="text-3xl font-bold mb-2">BESS 专业知识测验</h1>
+            <p class="text-slate-600 mb-8">测试您对电池储能系统的理解。题库包含500道问题，每次测验将根据您的掌握情况智能抽取10道题。</p>
+            <button id="start-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-transform transform hover:scale-105 mb-4">
+                <i class="fas fa-play mr-2"></i>开始测验
+            </button>
+            <button id="persistent-review-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-transform transform hover:scale-105 hidden">
+                <i class="fas fa-book-open mr-2"></i>复习错题库
+            </button>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quiz-screen" class="hidden">
+            <header class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold">
+                    <span id="question-counter">第 1 / 10 题</span>
+                </h2>
+                <div class="flex items-center space-x-2">
+                     <button id="mark-btn" class="mark-btn text-slate-500 hover:text-amber-500 text-xl p-2 rounded-full" title="标记以便复习">
+                        <i class="far fa-flag"></i>
+                    </button>
+                    <button id="toc-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-list-ul mr-2"></i>目录
+                    </button>
+                </div>
+            </header>
+
+            <main id="question-container" class="p-8">
+                <p id="question-text" class="text-xl font-medium mb-8 min-h-[60px]"></p>
+                <div id="options-container" class="space-y-4">
+                    <!-- Options will be injected here -->
+                </div>
+            </main>
+
+            <footer class="p-4 bg-slate-50 border-t flex justify-between items-center">
+                <button id="prev-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition-opacity">
+                    <i class="fas fa-arrow-left mr-2"></i>上一题
+                </button>
+                <button id="next-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">
+                    下一题<i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </footer>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="hidden p-8">
+            <h2 class="text-3xl font-bold text-center mb-4">测验完成！</h2>
+            <div class="bg-blue-50 p-6 rounded-lg text-center mb-8">
+                <p class="text-lg text-slate-700">您的最终得分</p>
+                <p id="score-text" class="text-5xl font-bold text-blue-600 my-2">8 / 10</p>
+            </div>
+            
+            <div id="review-container" class="space-y-4 mb-8">
+                <!-- Review answers will be injected here -->
+            </div>
+
+            <button id="review-bank-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-transform transform hover:scale-105 mb-4 hidden">
+                <i class="fas fa-book-open mr-2"></i>复习错题/标记问题
+            </button>
+            <button id="restart-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-transform transform hover:scale-105">
+                <i class="fas fa-redo mr-2"></i>再试一次
+            </button>
+        </div>
+
+        <!-- Review Screen -->
+        <div id="review-screen" class="hidden">
+            <header class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                 <h2 id="review-title" class="text-lg font-semibold">复习题库</h2>
+                 <div class="flex items-center">
+                    <button id="review-start-new-quiz-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg mr-2">
+                        <i class="fas fa-play mr-2"></i>开始新测验
+                    </button>
+                    <button id="review-back-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-times mr-2"></i>关闭
+                    </button>
+                 </div>
+            </header>
+            <main class="p-8">
+                <p id="review-counter" class="text-sm text-slate-500 mb-2"></p>
+                <div id="review-item-container">
+                    <!-- Review content injected here -->
+                </div>
+            </main>
+             <footer class="p-4 bg-slate-50 border-t flex justify-between items-center">
+                <button id="review-prev-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">
+                    <i class="fas fa-arrow-left mr-2"></i>上一题
+                </button>
+                <button id="review-next-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">
+                    下一题<i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </footer>
+        </div>
+
+    </div>
+
+    <!-- Table of Contents Modal -->
+    <div id="toc-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden opacity-0">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 modal-content scale-95">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold">问题索引</h3>
+                <button id="close-toc-btn" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+            </div>
+            <div id="toc-grid" class="grid grid-cols-5 gap-3">
+                <!-- TOC items will be injected here -->
+            </div>
+             <div class="text-xs text-center mt-4 text-slate-500 flex justify-center space-x-4">
+                <span><span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"></span>已回答</span>
+                <span><span class="inline-block w-3 h-3 bg-amber-400 rounded-full mr-1"></span>已标记</span>
+                <span><span class="inline-block w-3 h-3 bg-slate-200 rounded-full mr-1"></span>未回答</span>
+             </div>
+        </div>
+    </div>
+
+
+<script>
+const App = {
+    // Application state
+    state: {
+        fullQuestionBank: [],
+        currentQuizQuestions: [],
+        currentQuestionIndex: 0,
+        userAnswers: {}, // { questionId: "selectedOption" }
+        markedQuestions: new Set(),
+        persistentReviewBank: [],
+        sessionReviewBank: [],
+        questionStats: {}, // { questionId: { correctCount: 0 } }
+        currentReviewIndex: 0,
+        quizActive: false,
+    },
+
+    // DOM Elements
+    elements: {
+        startScreen: document.getElementById('start-screen'),
+        quizScreen: document.getElementById('quiz-screen'),
+        resultScreen: document.getElementById('result-screen'),
+        reviewScreen: document.getElementById('review-screen'),
+        startBtn: document.getElementById('start-btn'),
+        restartBtn: document.getElementById('restart-btn'),
+        persistentReviewBtn: document.getElementById('persistent-review-btn'),
+        reviewBankBtn: document.getElementById('review-bank-btn'),
+        questionCounter: document.getElementById('question-counter'),
+        questionText: document.getElementById('question-text'),
+        optionsContainer: document.getElementById('options-container'),
+        prevBtn: document.getElementById('prev-btn'),
+        nextBtn: document.getElementById('next-btn'),
+        markBtn: document.getElementById('mark-btn'),
+        scoreText: document.getElementById('score-text'),
+        reviewContainer: document.getElementById('review-container'),
+        tocBtn: document.getElementById('toc-btn'),
+        tocModal: document.getElementById('toc-modal'),
+        tocGrid: document.getElementById('toc-grid'),
+        closeTocBtn: document.getElementById('close-toc-btn'),
+        reviewTitle: document.getElementById('review-title'),
+        reviewBackBtn: document.getElementById('review-back-btn'),
+        reviewStartNewQuizBtn: document.getElementById('review-start-new-quiz-btn'),
+        reviewCounter: document.getElementById('review-counter'),
+        reviewItemContainer: document.getElementById('review-item-container'),
+        reviewPrevBtn: document.getElementById('review-prev-btn'),
+        reviewNextBtn: document.getElementById('review-next-btn'),
+    },
+
+    // Initializes the application
+    init() {
+        this.state.fullQuestionBank = this.getFullQuestionBank();
+        this.loadPersistentReviewBank();
+        this.loadQuestionStats();
+        this.addEventListeners();
+    },
+
+    // Sets up all event listeners
+    addEventListeners() {
+        this.elements.startBtn.addEventListener('click', () => this.startQuiz());
+        this.elements.restartBtn.addEventListener('click', () => this.startQuiz());
+        this.elements.nextBtn.addEventListener('click', () => this.navigateQuestion(1));
+        this.elements.prevBtn.addEventListener('click', () => this.navigateQuestion(-1));
+        this.elements.markBtn.addEventListener('click', () => this.toggleMarkQuestion());
+        this.elements.tocBtn.addEventListener('click', () => this.showTOC());
+        this.elements.closeTocBtn.addEventListener('click', () => this.hideTOC());
+        this.elements.tocModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.tocModal) this.hideTOC();
+        });
+        this.elements.persistentReviewBtn.addEventListener('click', () => this.enterReviewMode(this.state.persistentReviewBank, 'start-screen'));
+        this.elements.reviewBankBtn.addEventListener('click', () => this.enterReviewMode(this.state.sessionReviewBank, 'result-screen'));
+        this.elements.reviewBackBtn.addEventListener('click', () => this.exitReviewMode());
+        this.elements.reviewStartNewQuizBtn.addEventListener('click', () => this.startQuiz());
+        this.elements.reviewNextBtn.addEventListener('click', () => this.navigateReview(1));
+        this.elements.reviewPrevBtn.addEventListener('click', () => this.navigateReview(-1));
+    },
+    
+    // Show/hide main screens
+    showScreen(screenName) {
+        ['startScreen', 'quizScreen', 'resultScreen', 'reviewScreen'].forEach(id => {
+            this.elements[id].classList.add('hidden');
+        });
+        this.elements[screenName].classList.remove('hidden');
+    },
+
+    // Starts a new quiz session using the smart algorithm
+    startQuiz() {
+        this.state.currentQuizQuestions = this.generateSmartQuiz(10);
+        this.state.currentQuestionIndex = 0;
+        this.state.userAnswers = {};
+        this.state.markedQuestions.clear();
+        this.state.quizActive = true;
+        this.showScreen('quizScreen');
+        this.displayQuestion();
+    },
+
+    // Displays the current question
+    displayQuestion() {
+        const question = this.state.currentQuizQuestions[this.state.currentQuestionIndex];
+        const questionId = question.id;
+
+        this.elements.questionCounter.textContent = `第 ${this.state.currentQuestionIndex + 1} / ${this.state.currentQuizQuestions.length} 题`;
+        this.elements.questionText.textContent = question.question;
+        this.elements.optionsContainer.innerHTML = '';
+        this.updateMarkButton();
+
+        const shuffledOptions = this.shuffleArray([...question.options]);
+        shuffledOptions.forEach(option => {
+            const isSelected = this.state.userAnswers[questionId] === option;
+            const optionEl = document.createElement('div');
+            optionEl.className = `quiz-option p-4 border-2 rounded-lg cursor-pointer ${isSelected ? 'selected' : 'border-slate-200'}`;
+            optionEl.textContent = option;
+            optionEl.addEventListener('click', () => this.selectOption(questionId, option));
+            this.elements.optionsContainer.appendChild(optionEl);
+        });
+
+        this.updateNavButtons();
+    },
+    
+    selectOption(questionId, selectedOption) {
+        this.state.userAnswers[questionId] = selectedOption;
+        this.displayQuestion(); // Re-render to show selection
+    },
+    
+    navigateQuestion(direction) {
+        const newIndex = this.state.currentQuestionIndex + direction;
+        if (newIndex >= 0 && newIndex < this.state.currentQuizQuestions.length) {
+            this.state.currentQuestionIndex = newIndex;
+            this.displayQuestion();
+        } else if (newIndex === this.state.currentQuizQuestions.length) {
+            this.showResults();
+        }
+    },
+    
+    updateNavButtons() {
+        this.elements.prevBtn.disabled = this.state.currentQuestionIndex === 0;
+        this.elements.prevBtn.style.opacity = this.elements.prevBtn.disabled ? '0.5' : '1';
+
+        if (this.state.currentQuestionIndex === this.state.currentQuizQuestions.length - 1) {
+            this.elements.nextBtn.innerHTML = '提交并查看结果 <i class="fas fa-poll ml-2"></i>';
+            this.elements.nextBtn.classList.replace('bg-blue-500', 'bg-green-500');
+            this.elements.nextBtn.classList.replace('hover:bg-blue-600', 'hover:bg-green-600');
+        } else {
+            this.elements.nextBtn.innerHTML = '下一题 <i class="fas fa-arrow-right ml-2"></i>';
+            this.elements.nextBtn.classList.replace('bg-green-500', 'bg-blue-500');
+            this.elements.nextBtn.classList.replace('hover:bg-green-600', 'hover:bg-blue-600');
+        }
+    },
+
+    toggleMarkQuestion() {
+        const currentId = this.state.currentQuizQuestions[this.state.currentQuestionIndex].id;
+        if (this.state.markedQuestions.has(currentId)) {
+            this.state.markedQuestions.delete(currentId);
+        } else {
+            this.state.markedQuestions.add(currentId);
+        }
+        this.updateMarkButton();
+    },
+
+    updateMarkButton() {
+        const currentId = this.state.currentQuizQuestions[this.state.currentQuestionIndex].id;
+        const icon = this.elements.markBtn.querySelector('i');
+        if (this.state.markedQuestions.has(currentId)) {
+            this.elements.markBtn.classList.add('marked');
+            icon.classList.replace('far', 'fas');
+        } else {
+            this.elements.markBtn.classList.remove('marked');
+            icon.classList.replace('fas', 'far');
+        }
+    },
+
+    // Shows the final results screen and updates stats
+    showResults() {
+        this.state.quizActive = false;
+        let score = 0;
+        this.elements.reviewContainer.innerHTML = '';
+        
+        const sessionReviewIds = new Set(this.state.markedQuestions);
+
+        this.state.currentQuizQuestions.forEach((q, index) => {
+            const userAnswer = this.state.userAnswers[q.id];
+            const isCorrect = userAnswer === q.answer;
+            
+            if (isCorrect) {
+                score++;
+                this.state.questionStats[q.id] = { correctCount: (this.state.questionStats[q.id]?.correctCount || 0) + 1 };
+                this.removeFromReviewBank(q.id);
+            } else {
+                sessionReviewIds.add(q.id);
+                if (this.state.questionStats[q.id]) {
+                    this.state.questionStats[q.id].correctCount = 0;
+                }
+            }
+
+            const reviewCard = document.createElement('div');
+            reviewCard.className = `p-4 rounded-lg ${isCorrect ? 'result-correct' : 'result-incorrect'}`;
+            const sanitizedAnswer = q.answer.replace(/'/g, "\\'");
+            reviewCard.innerHTML = `
+                <p class="font-bold mb-2">${index + 1}. ${q.question}</p>
+                <p class="text-sm">您的答案: <span class="font-semibold ${isCorrect ? 'text-green-700' : 'text-red-700'}">${userAnswer || '未回答'}</span></p>
+                <div class="flex items-center mt-1">
+                    <p class="text-sm">正确答案: <span class="font-semibold text-green-700">${q.answer}</span></p>
+                    <button onclick="App.readAloud('正确答案: ${sanitizedAnswer}')" class="ml-3 text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100" title="朗读答案">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+                <p class="text-sm mt-2 text-slate-600 bg-slate-100 p-2 rounded">${q.explanation}</p>
+            `;
+            this.elements.reviewContainer.appendChild(reviewCard);
+        });
+        
+        this.saveQuestionStats();
+        
+        this.state.sessionReviewBank = this.state.fullQuestionBank.filter(q => sessionReviewIds.has(q.id));
+        this.updatePersistentReviewBank(this.state.sessionReviewBank);
+
+        if (this.state.sessionReviewBank.length > 0) {
+            this.elements.reviewBankBtn.textContent = `复习 ${this.state.sessionReviewBank.length} 道错题/标记问题`;
+            this.elements.reviewBankBtn.classList.remove('hidden');
+        } else {
+            this.elements.reviewBankBtn.classList.add('hidden');
+        }
+
+        this.elements.scoreText.textContent = `${score} / ${this.state.currentQuizQuestions.length}`;
+        this.showScreen('resultScreen');
+    },
+
+    // Data persistence and management
+    loadQuestionStats() {
+        try {
+            this.state.questionStats = JSON.parse(localStorage.getItem('bessQuestionStats_CN') || '{}');
+        } catch (e) {
+            console.error("加载题目统计数据失败:", e);
+            this.state.questionStats = {};
+        }
+    },
+
+    saveQuestionStats() {
+        localStorage.setItem('bessQuestionStats_CN', JSON.stringify(this.state.questionStats));
+    },
+
+    loadPersistentReviewBank() {
+        try {
+            const storedBank = JSON.parse(localStorage.getItem('bessReviewBank_CN') || '[]');
+            this.state.persistentReviewBank = storedBank;
+            if (storedBank.length > 0) {
+                this.elements.persistentReviewBtn.classList.remove('hidden');
+                this.elements.persistentReviewBtn.textContent = `复习错题库 (${storedBank.length})`;
+            } else {
+                 this.elements.persistentReviewBtn.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error("加载错题库失败:", e);
+            this.state.persistentReviewBank = [];
+        }
+    },
+    
+    updatePersistentReviewBank(newReviewQuestions) {
+        const combinedBank = [...this.state.persistentReviewBank, ...newReviewQuestions];
+        const uniqueBank = Array.from(new Map(combinedBank.map(item => [item.id, item])).values());
+        this.state.persistentReviewBank = uniqueBank;
+        localStorage.setItem('bessReviewBank_CN', JSON.stringify(uniqueBank));
+        this.loadPersistentReviewBank();
+    },
+
+    removeFromReviewBank(questionId) {
+        const initialLength = this.state.persistentReviewBank.length;
+        this.state.persistentReviewBank = this.state.persistentReviewBank.filter(q => q.id !== questionId);
+        if (this.state.persistentReviewBank.length < initialLength) {
+            localStorage.setItem('bessReviewBank_CN', JSON.stringify(this.state.persistentReviewBank));
+            this.loadPersistentReviewBank();
+        }
+    },
+
+    // Review Mode Logic
+    enterReviewMode(questionList, originScreen) {
+        this.state.reviewingBank = questionList;
+        this.state.currentReviewIndex = 0;
+        this.state.reviewOrigin = originScreen;
+        this.elements.reviewTitle.textContent = originScreen === 'start-screen' ? '复习全部错题' : '复习本次错题';
+        this.showScreen('reviewScreen');
+        this.displayReviewItem();
+    },
+
+    exitReviewMode() {
+        this.showScreen(this.state.reviewOrigin || 'start-screen');
+    },
+    
+    displayReviewItem() {
+        const item = this.state.reviewingBank[this.state.currentReviewIndex];
+        const userAnswerData = this.state.userAnswers[item.id] ? 
+            `<p class="text-sm mt-2">您上次的答案: <span class="font-semibold text-red-700">${this.state.userAnswers[item.id]}</span></p>` : '';
+        
+        this.elements.reviewItemContainer.innerHTML = `
+            <p class="font-bold text-xl mb-4">${item.question}</p>
+            ${userAnswerData}
+            <div class="mt-2 result-correct p-3 rounded-lg">
+                <div class="flex items-center">
+                    <p class="text-sm">正确答案: <span class="font-semibold text-green-800">${item.answer}</span></p>
+                    <button onclick="App.readAloud('${item.answer.replace(/'/g, "\\'")}')" class="ml-3 text-blue-500 hover:text-blue-700"><i class="fas fa-volume-up"></i></button>
+                </div>
+            </div>
+            <p class="text-sm mt-4 text-slate-600 bg-slate-100 p-3 rounded">${item.explanation}</p>
+        `;
+        this.elements.reviewCounter.textContent = `第 ${this.state.currentReviewIndex + 1} / ${this.state.reviewingBank.length} 题`;
+        this.elements.reviewPrevBtn.disabled = this.state.currentReviewIndex === 0;
+        this.elements.reviewPrevBtn.style.opacity = this.elements.reviewPrevBtn.disabled ? 0.5 : 1;
+        this.elements.reviewNextBtn.disabled = this.state.currentReviewIndex === this.state.reviewingBank.length - 1;
+        this.elements.reviewNextBtn.style.opacity = this.elements.reviewNextBtn.disabled ? 0.5 : 1;
+    },
+
+    navigateReview(direction) {
+        const newIndex = this.state.currentReviewIndex + direction;
+        if (newIndex >= 0 && newIndex < this.state.reviewingBank.length) {
+            this.state.currentReviewIndex = newIndex;
+            this.displayReviewItem();
+        }
+    },
+
+    // Smart Quiz Generation Algorithm
+    generateSmartQuiz(totalQuestions) {
+        let quiz = [];
+        const quizIds = new Set();
+        const stats = this.state.questionStats;
+        const MASTERED_THRESHOLD = 3;
+
+        const eligibleReview = this.shuffleArray(
+            this.state.persistentReviewBank.filter(q => (stats[q.id]?.correctCount || 0) < MASTERED_THRESHOLD)
+        );
+        const reviewQuota = Math.min(eligibleReview.length, 3);
+        for (let i = 0; i < reviewQuota; i++) {
+            quiz.push(eligibleReview[i]);
+            quizIds.add(eligibleReview[i].id);
+        }
+
+        const newQuestionTarget = Math.ceil(totalQuestions * 0.5);
+        const newQuestions = this.shuffleArray(
+            this.state.fullQuestionBank.filter(q => !stats.hasOwnProperty(q.id) && !quizIds.has(q.id))
+        );
+        let newQuestionsAdded = 0;
+        for (const q of newQuestions) {
+            if (quiz.length >= totalQuestions) break;
+            if (newQuestionsAdded < newQuestionTarget) {
+                 quiz.push(q);
+                 quizIds.add(q.id);
+                 newQuestionsAdded++;
+            }
+        }
+        
+        if (quiz.length < totalQuestions) {
+            const fillPool = this.shuffleArray(
+                this.state.fullQuestionBank.filter(q => {
+                    const isNew = !stats.hasOwnProperty(q.id);
+                    const isMastered = (stats[q.id]?.correctCount || 0) >= MASTERED_THRESHOLD;
+                    return !quizIds.has(q.id) && !isMastered && !isNew;
+                })
+            );
+            const needed = totalQuestions - quiz.length;
+            for(let i=0; i < Math.min(needed, fillPool.length); i++){
+                quiz.push(fillPool[i]);
+                quizIds.add(fillPool[i].id);
+            }
+        }
+        
+         if (quiz.length < totalQuestions) {
+             const fallbackPool = this.shuffleArray(this.state.fullQuestionBank.filter(q => !quizIds.has(q.id)));
+             let nonMasteredFallback = fallbackPool.filter(q => (stats[q.id]?.correctCount || 0) < MASTERED_THRESHOLD);
+             let needed = totalQuestions - quiz.length;
+             for(let i=0; i < Math.min(needed, nonMasteredFallback.length); i++){
+                quiz.push(nonMasteredFallback[i]);
+                quizIds.add(nonMasteredFallback[i].id);
+             }
+         }
+         if (quiz.length < totalQuestions) {
+             const finalFallbackPool = this.shuffleArray(this.state.fullQuestionBank.filter(q => !quizIds.has(q.id)));
+             let needed = totalQuestions - quiz.length;
+             for(let i=0; i < Math.min(needed, finalFallbackPool.length); i++){
+                quiz.push(finalFallbackPool[i]);
+                quizIds.add(finalFallbackPool[i].id);
+             }
+         }
+
+        return this.shuffleArray(quiz);
+    },
+
+    // UI and Utility Functions
+    readAloud(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            window.speechSynthesis.speak(utterance);
+        } else {
+            alert('抱歉，您的浏览器不支持语音朗读功能。');
+        }
+    },
+    
+    showTOC() {
+        this.elements.tocGrid.innerHTML = '';
+        this.state.currentQuizQuestions.forEach((q, index) => {
+            const isAnswered = this.state.userAnswers.hasOwnProperty(q.id);
+            const isMarked = this.state.markedQuestions.has(q.id);
+            const tocItem = document.createElement('button');
+            tocItem.textContent = index + 1;
+            let bgColor = 'bg-slate-200 text-slate-700';
+            if(isMarked) bgColor = 'bg-amber-400 text-white';
+            else if(isAnswered) bgColor = 'bg-green-500 text-white';
+            
+            tocItem.className = `h-12 w-12 flex items-center justify-center rounded-full font-bold text-lg ${bgColor}`;
+            tocItem.addEventListener('click', () => this.jumpToQuestion(index));
+            this.elements.tocGrid.appendChild(tocItem);
+        });
+
+        this.elements.tocModal.classList.remove('hidden');
+        setTimeout(() => {
+            this.elements.tocModal.classList.remove('opacity-0');
+            this.elements.tocModal.querySelector('.modal-content').classList.remove('scale-95');
+        }, 10);
+    },
+
+    hideTOC() {
+        this.elements.tocModal.classList.add('opacity-0');
+        this.elements.tocModal.querySelector('.modal-content').classList.add('scale-95');
+        setTimeout(() => this.elements.tocModal.classList.add('hidden'), 300);
+    },
+    
+    jumpToQuestion(index) {
+        this.state.currentQuestionIndex = index;
+        this.displayQuestion();
+        this.hideTOC();
+    },
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    },
+
+    getFullQuestionBank() {
+        return [
+            // 模块一: BESS核心概念 (50题)
+            { id: 1, question: 'LCOES的全称是什么?', options: ['平准化储能成本', '液冷优化储能系统', '锂离子扩展存储周期'], answer: '平准化储能成本', explanation: 'LCOES是衡量BESS项目经济可行性的关键指标，代表在其生命周期内每放出一单位电能的平均成本。' },
+            { id: 2, question: '一个BESS的额定功率为100MW，容量为400MWh。它的储能时长是多久?', options: ['4小时', '2小时', '1小时'], answer: '4小时', explanation: '储能时长 = 能量容量 (MWh) / 功率 (MW)。400 MWh / 100 MW = 4小时。' },
+            { id: 3, question: '什么是往返效率(RTE)?', options: ['放出电能与充电电能的比率', '完成一个充放电周期所需的时间', '冷却系统的效率'], answer: '放出电能与充电电能的比率', explanation: 'RTE衡量充放电周期中的能量损失。90%的RTE意味着有10%的能量损失了。' },
+            { id: 4, question: '导致LFP电池日历老化的主要原因是什么?', options: ['高环境温度和高荷电状态(SoC)', '频繁的深度放电循环', '高倍率充电'], answer: '高环境温度和高荷电状态(SoC)', explanation: '即使不使用，电池也会随时间退化。这个过程称为日历老化，高温和满电状态会加速这一过程。' },
+            { id: 5, question: 'BMS的“主动均衡”功能是什么?', options: ['在电芯之间转移能量以平衡电压', '通过电阻被动消耗高电压电芯的多余能量', '在不同电池簇之间平衡负载'], answer: '在电芯之间转移能量以平衡电压', explanation: '主动均衡使用DC-DC转换器将电荷从高电压电芯转移到低电压电芯，比被动均衡更高效，能提升可用容量和寿命。' },
+            { id: 6, question: '对于一个200kWh的电池，0.5C的充放电倍率意味着什么？', options: ['充放电功率为100kW', '充放电功率为200kW', '充放电功率为400kW'], answer: '充放电功率为100kW', explanation: 'C倍率是衡量电池相对于其最大容量的放电速率。0.5C意味着放电电流将在2小时内完全放电。功率 = 0.5 * 200 kWh / 1h = 100 kW。' },
+            { id: 7, question: '哪个术语描述了BESS的可用能量窗口？', options: ['荷电状态(SoC)窗口', '健康状态(SoH)', '放电深度(DoD)'], answer: '荷电状态(SoC)窗口', explanation: '运营商通常使用一个SoC窗口（例如10%到90%）来延长电池寿命，避免极高或极低电量带来的压力。DoD指的是单次循环中放电的量。' },
+            { id: 8, question: 'EMS（能量管理系统）的主要作用是什么？', options: ['为实现经济价值或特定电网服务而优化BESS', '监测单个电芯的电压和温度', '将电池的直流电转换为交流电'], answer: '为实现经济价值或特定电网服务而优化BESS', explanation: 'EMS是BESS的“大脑”，根据市场信号、电网需求和资产健康状况，做出何时充电或放电的高级决策。' },
+            { id: 9, question: '什么是“能量密度”？', options: ['每单位体积或质量所能储存的能量', '能量可以被释放的速度', '电池寿命内的总能量输出'], answer: '每单位体积或质量所能储存的能量', explanation: '能量密度（Wh/L或Wh/kg）是电池的一个关键特性。高能量密度意味着可以在更小、更轻的封装中储存更多的能量。' },
+            { id: 10, question: 'PCS（储能变流器）的功能是什么？', options: ['在直流和交流电之间进行转换', '冷却电池模组', '管理电池电芯'], answer: '在直流和交流电之间进行转换', explanation: 'PCS是一个双向逆变器，对于连接直流电池和交流电网至关重要。' },
+            { id: 11, question: '“健康状态”（SoH）衡量的是什么？', options: ['电池相对于其全新状态的状况', '当前的充电水平', '电池的内部温度'], answer: '电池相对于其全新状态的状况', explanation: 'SoH以百分比表示，100%代表新电池。寿命终点通常定义为SoH达到70%或80%。' },
+            { id: 12, question: '什么是“功率密度”？', options: ['每单位体积或质量可用的功率', 'BESS的总功率输出', '电解液的密度'], answer: '每单位体积或质量可用的功率', explanation: '功率密度（W/L或W/kg）表示电池输送能量的速度。高功率密度对于频率响应等应用很重要。' },
+            { id: 13, question: '“用户侧”储能指的是什么？', options: ['安装在电力用户电表后的BESS', '由电力公司拥有的BESS', '移动式储能单元'], answer: '安装在电力用户电表后的BESS', explanation: '用户侧系统被家庭和企业用来管理他们的能源使用，例如，储存太阳能或减少峰值需求费用。' },
+            { id: 14, question: '“电网侧”储能指的是什么？', options: ['直接连接到输电或配电网的BESS', '位于物业前面的BESS', '一系列BESS单元中的第一个'], answer: '直接连接到输电或配电网的BESS', explanation: '电网侧系统，也称为公用事业规模储能，为电网提供服务，如频率调节或容量。' },
+            { id: 15, question: '什么是“循环寿命”？', options: ['电池容量衰减到特定水平前可以执行的充放电循环次数', '电池的总寿命年限', '完成一个充放电循环的时间'], answer: '电池容量衰减到特定水平前可以执行的-充放电循环次数', explanation: '循环寿命是决定BESS寿命和经济价值的关键参数。LFP电池通常具有很高的循环寿命。' },
+            { id: 16, question: '什么是“自放电”？', options: ['电池在不使用时电荷的逐渐损失', '防止过充的安全特性', '将电池放电至0% SoC的过程'], answer: '电池在不使用时电荷的逐渐损失', explanation: '自放电是由内部化学反应引起的，并受温度影响。LFP电池的自放电率非常低。' },
+            { id: 17, question: 'BESS的规模通常由哪两个参数定义？', options: ['功率(MW)和能量(MWh)', '电压(V)和电流(A)', '容量(Ah)和效率(%)'], answer: '功率(MW)和能量(MWh)', explanation: '功率决定了可以一次性提供多少电力，而能量决定了该功率可以持续多长时间。' },
+            { id: 18, question: '电池管理系统（BMS）的主要目的是什么？', options: ['确保电池系统的安全、可靠和长寿命', '管理能源市场投标策略', '为电池架提供冷却'], answer: '确保电池系统的安全、可靠和长寿命', explanation: 'BMS是监控和管理电池所有方面的关键组件，包括电压、电流、温度和均衡。' },
+            { id: 19, question: '什么是“混合”发电厂？', options: ['将储能与太阳能或风能等发电来源相结合的电厂', '使用交流和直流电的电厂', '既可并网也可离网运行的电厂'], answer: '将储能与太阳能或风能等发电来源相结合的电厂', explanation: '与独立的可再生能源发电相比，混合电厂可以提供更可靠、可调度的电力输出。' },
+            { id: 20, question: '什么是“能量套利”？', options: ['低价购买电力储存，高价出售', '平衡电池电压的方法', '一种用于频率控制的电网服务'], answer: '低价购买电力储存，高价出售', explanation: '能量套利是BESS的主要商业案例，利用一天中电价的波动。' },
+            { id: 21, question: '在BESS的背景下，“共址”意味着什么？', options: ['将储能系统与发电设施设在同一地点', '管理BESS车队的软件', '一种电池化学成分'], answer: '将储能系统与发电设施设在同一地点', explanation: '将BESS与太阳能或风电场共址可以通过共享电网连接基础设施来降低成本，并提高项目的整体价值。' },
+            { id: 22, question: '模块化BESS设计的主要好处是什么？', options: ['可扩展性和易于维护', '更高的能量密度', '更低的初始成本'], answer: '可扩展性和易于维护', explanation: '模块化设计允许灵活的系统规模、未来的扩展和更容易的组件更换。' },
+            { id: 23, question: 'BESS项目的“可融资性”是指什么？', options: ['项目对贷款人融资的吸引力', '项目预计能赚多少钱', '用于项目的银行账户类型'], answer: '项目对贷款人融资的吸引力', explanation: '可融资性取决于可靠的技术、强有力的保修和可预测的收入来源等因素。' },
+            { id: 24, question: '在BESS中，“电池串”是什么？', options: ['为产生更高电压而串联的一系列电池模组', '连接BESS与电网的电缆', '一系列操作命令'], answer: '为产生更高电压而串联的一系列电池模组', explanation: '然后将多个电池串并联以增加BESS的总容量。' },
+            { id: 25, question: 'BESS的“寿命终点”（EoL）通常由什么定义？', options: ['其原始能量容量的特定减少（例如，降至80% SoH）', '固定的运营年限', '保修到期日'], answer: '其原始能量容量的特定减少（例如，降至80% SoH）', explanation: '即使达到了电网应用的EoL，电池仍可能适用于要求不高的二次生命应用。' },
+            { id: 26, question: '变压器在公用事业规模BESS项目中的作用是什么？', options: ['将PCS的电压升至电网电压水平', '将交流电转换为直流电', '调节BESS输出的频率'], answer: '将PCS的电压升至电网电压水平', explanation: 'PCS通常输出低电压（例如690V），必须将其升高以匹配中压或高压的配电或输电网（例如33kV）。' },
+            { id: 27, question: '什么是“削峰”？', options: ['在需求高峰时使用储存的能量来减少消耗', '平滑太阳能发电场的输出', '以尽可能低的功率为电池充电'], answer: '在需求高峰时使用储存的能量来减少消耗', explanation: '削峰是商业和工业BESS降低电费的常见应用，通过减少需求费用。' },
+            { id: 28, question: '“辅助服务”指的是什么？', options: ['支持电网稳定性和可靠性的服务', 'BESS的维护和维修服务', 'BESS项目的金融服务'], answer: '支持电网稳定性和可靠性的服务', explanation: '辅助服务包括频率调节、电压支持和运行备用，是许多市场中BESS的主要收入来源。' },
+            { id: 29, question: '什么是“电压支持”？', options: ['注入或吸收无功功率以维持稳定的电网电压', '从BESS提供恒定的电压输出', '保护BESS免受电压尖峰的影响'], answer: '注入或吸收无功功率以维持稳定的电网电压', explanation: 'PCS可以管理无功功率（VArs），帮助电网运营商将电压水平保持在所需范围内。' },
+            { id: 30, question: '什么是“交钥匙”BESS解决方案？', options: ['由单一供应商提供的、可立即运行的完整解决方案', '用物理钥匙操作的BESS', '仅包括电池架的解决方案'], answer: '由单一供应商提供的、可立即运行的完整解决方案', explanation: '交钥匙合同通常包括工程、采购、施工和调试，为项目所有者简化了流程。' },
+            { id: 31, question: 'HVAC系统在BESS集装箱中的作用是什么？', options: ['为所有组件维持最佳的运行温度和湿度', '在紧急情况下排出有害气体', '在寒冷气候下为人员提供暖气'], answer: '为所有组件维持最佳的运行温度和湿度', explanation: 'HVAC系统为集装箱提供整体的热环境，与电池特定的热管理系统（如液体冷却）协同工作。' },
+            { id: 32, question: '什么是“放电深度”（DoD）？', options: ['电池已放电容量的百分比', '电池容器的物理深度', '电池健康状况的衡量标准'], answer: '电池已放电容量的百分比', explanation: '每个循环的DoD越高，循环寿命可能越短。限制DoD（例如，至80%）可以延长电池的寿命。' },
+            { id: 33, question: '什么是“BESS增容”？', options: ['向现有BESS站点添加新的电池容量', 'EMS的软件升级', '更换冷却系统'], answer: '向现有BESS站点添加新的电池容量', explanation: '随着原始电池的退化，计划进行增容，以在其生命周期内维持站点的合同功率和能量输出。' },
+            { id: 34, question: 'BESS项目中的“辅助设备”（BoP）是什么？', options: ['项目中除电池系统本身外的所有其他组件', '项目的财务资产负债表', '平衡集装箱重量的系统'], answer: '项目中除电池系统本身外的所有其他组件', explanation: 'BoP包括项目所需的基础、变压器、开关设备、电缆和控制楼。' },
+            { id: 35, question: '什么是“直流耦合”的太阳能+储能系统？', options: ['太阳能电池板和电池在逆变器前的直流侧连接', '太阳能电池板和电池通过数据线连接', '系统位于哥伦比亚特区'], answer: '太阳能电池板和电池在逆变器前的直流侧连接', explanation: '直流耦合通常对于直接从太阳能为电池充电更有效，因为它避免了将直流电转换为交流电再转回直流电。' },
+            { id: 36, question: '什么是“交流耦合”的太阳能+储能系统？', options: ['太阳能系统和BESS各有其逆变器，并在交流侧连接', '系统使用交流电进行冷却', '系统经认证可用于空调应用'], answer: '太阳能系统和BESS各有其逆变器，并在交流侧连接', explanation: '对于将BESS改造到现有的太阳能装置上，交流耦合通常更容易。' },
+            { id: 37, question: '什么是“孤岛”或“微电网”能力？', options: ['BESS独立于主电网运行的能力', '位于偏远岛屿上的BESS', '阻止BESS运行的功能'], answer: 'BESS独立于主电网运行的能力', explanation: '在电网中断期间，孤岛BESS可以继续为工厂或社区等局部区域供电，创建一个有弹性的微电网。' },
+            { id: 38, question: '在BESS收入中，“叠加”是什么？', options: ['将来自不同服务的多个收入流结合起来', '电池集装箱的物理堆叠', '一堆财务文件'], answer: '将来自不同服务的多个收入流结合起来', explanation: '收入叠加或价值叠加，涉及使用BESS提供多种服务（例如，频率响应和能量套利）以最大化其盈利能力。' },
+            { id: 39, question: '对BESS来说，“调度”是什么意思？', options: ['发送BESS充电或放电的命令', '从工厂发运BESS', '系统的每日报告'], answer: '发送BESS充电或放电的命令', explanation: 'EMS根据其优化算法或电网运营商的信号来调度BESS。' },
+            { id: 40, question: '电池中的“衰退”是什么？', options: ['随时间推移，容量不可逆转的损失或电阻的增加', '电池的突然故障', '电池放电的过程'], answer: '随时间推移，容量不可逆转的损失或电阻的增加', explanation: '衰退通过循环（循环老化）和时间推移（日历老化）发生，是LCOES计算中的一个关键因素。' },
+            { id: 41, question: '什么是“容量付款”？', options: ['为随时准备提供电力而支付的费用，无论是否使用', '为电池中储存的总能量支付的费用', 'BESS的初始购买价格'], answer: '为随时准备提供电力而支付的费用，无论是否使用', explanation: '容量市场向资源支付费用，以保证其在未来需求高峰期间的可用性，确保电网的可靠性。' },
+            { id: 42, question: '在BESS项目中，“并网”是什么？', options: ['将BESS合法地、物理地连接到电网的过程', 'BMS和EMS之间的通信链接', '电池模组之间的物理连接'], answer: '将BESS合法地、物理地连接到电网的过程', explanation: '并网过程涉及详细的研究、协议和物理建设，可能是项目开发中一个漫长而复杂的部分。' },
+            { id: 43, question: '什么是“单线图”（SLD）？', options: ['显示BESS电厂电气连接的简化示意图', '显示BESS充电状态随时间变化的图表', '用于控制BESS的单行计算机代码'], answer: '显示BESS电厂电气连接的简化示意图', explanation: 'SLD是基础的工程图纸，显示了从电池到电网连接点的功率流。' },
+            { id: 44, question: '“UL 9540A”测试的是什么？', options: ['BESS单元中的热失控火灾蔓延', 'PCS的能源效率', 'EMS的网络安全'], answer: 'BESS单元中的热失控火灾蔓延', explanation: 'UL 9540A测试是一种大规模的火灾测试方法，有助于描述BESS的火灾和爆炸危险，为消防安全工程提供关键数据。' },
+            { id: 45, question: '对于固定储能，LFP化学相较于NMC的主要优势是什么？', options: ['更高的安全性和更长的循环寿命', '更高的能量密度', '在极冷温度下性能更好'], answer: '更高的安全性和更长的循环寿命', explanation: 'LFP（磷酸铁锂）热稳定性更好，不易发生热失控，并且通常能承受比NMC（镍锰钴）多得多的充放电循环，使其成为固定BESS的理想选择。' },
+            { id: 46, question: '“保修包”提供什么？', options: ['由一方为整个BESS项目提供的单一、全面的保修', '用于运输电池的保护性包装', '软件的延长保修'], answer: '由一方为整个BESS项目提供的单一、全面的保修', explanation: '通常由EPC或集成商提供的保修包，简化了索赔流程，降低了所有者和融资方的风险，因为他们只需与一个实体打交道。' },
+            { id: 47, question: '什么是“合成惯量”？', options: ['BESS使用其逆变器模仿旋转发电机的稳定效应', 'BESS集装箱的一种轻质结构材料', 'BESS性能的计算机模拟'], answer: 'BESS使用其逆变器模仿旋转发电机的稳定效应', explanation: '随着传统发电厂的退役，电网失去了物理惯量。构网型BESS可以提供合成惯量，以电子方式复制这种效应，维持电网稳定。' },
+            { id: 48, question: '什么是“弃电”？', options: ['发电机（如太阳能）的输出低于其潜力的减少', 'BESS保修期的缩短', '为维护而关闭BESS的过程'], answer: '发电机（如太阳能）的输出低于其潜力的减少', explanation: '当发电量过多而需求或电网容量不足时，常常会发生弃电。共址的BESS可以储存这些本会被浪费的能量。' },
+            { id: 49, question: '在BESS项目的收入结构中，“商业尾期”是什么？', options: ['初始长期合同到期后的运营期', '连接BESS与变压器的电缆', '收入的意外下降'], answer: '初始长期合同到期后的运营期', explanation: '在商业尾期，BESS在公开市场上运营，这可能提供更高的回报，但也涉及更多风险。' },
+            { id: 50, question: 'BESS的“铭牌容量”是什么？', options: ['预期的、满负荷持续输出或容量', '写在BESS集装箱上的文字', '平均运行容量'], answer: '预期的、满负荷持续输出或容量', explanation: '这是指制造商指定的官方功率（MW）和能量（MWh）等级。' },
+
+            // 模块二: 中国市场与电网服务 (50题)
+            { id: 51, question: '在中国电网中，储能参与“一次调频”的主要作用是什么？', options: ['快速响应频率偏差，维持电网稳定', '作为备用容量，在高峰时段供电', '平滑可再生能源的输出波动'], answer: '快速响应频率偏差，维持电网稳定', explanation: '一次调频是电网的第一道防线，要求储能系统在毫秒至秒级内快速响应，阻止频率崩溃，是保障电网安全的关键辅助服务。' },
+            { id: 52, question: '什么是“削峰填谷”电价政策，储能如何从中获利？', options: ['利用峰谷电价差，低价充电高价放电', '在用电高峰削减负荷', '为电网提供备用容量'], answer: '利用峰谷电价差，低价充电高价放电', explanation: '中国的峰谷电价政策为储能创造了套利空间。储能在电价低的“谷”时段充电，在电价高的“峰”时段放电，赚取差价，这是用户侧储能最主要的盈利模式之一。' },
+            { id: 53, question: '通常所说的“两个细则”指的是什么，它如何影响储能电站的运营？', options: ['发电厂并网运行管理和辅助服务管理实施细则', '储能建设和消防安全规定', '电价制定和补贴发放规则'], answer: '发电厂并网运行管理和辅助服务管理实施细则', explanation: '“两个细则”是电网对并网电厂（包括储能）进行考核和补偿的依据。储能因其快速精准的调节能力，在调频、调峰等辅助服务中表现优异，可通过“两个细则”获得补偿收益。' },
+            { id: 54, question: '什么是“共享储能”模式，它在中国的发展情况如何？', options: ['由第三方投资建设，为多个新能源场站提供租赁服务的储能电站', '多个用户共享一个户用储能设备', '电网公司建设并免费提供给用户的储能'], answer: '由第三方投资建设，为多个新能源场站提供租赁服务的储能电站', explanation: '共享储能模式解耦了新能源和储能的建设，通过租赁容量的商业模式，有效降低了新能源场站的初始投资，是目前中国推动储能发展的重要商业模式创新。' },
+            { id: 55, question: '在中国，AGC（自动发电控制）调频属于哪一类辅助服务？', options: ['二次调频', '一次调频', '备用容量'], answer: '二次调频', explanation: 'AGC属于二次调频，由电网调度中心根据区域控制误差（ACE）自动向储能等资源下发调节指令，以在分钟级别将电网频率和联络线功率恢复到计划值。' },
+            { id: 56, question: '对于需要配置储能的新能源场站，“配储”的主要目的是什么？', options: ['平滑出力波动，提升电网友好性，满足并网要求', '增加发电量', '降低项目初始投资'], answer: '平滑出力波动，提升电网友好性，满足并网要求', explanation: '中国多地政策要求新能源场站按比例配置储能，以解决新能源的间歇性问题，减少“弃风弃光”，并为电网提供调峰调频能力。' },
+            { id: 57, question: '中国电力现货市场试点中，储能可以通过哪种方式获利？', options: ['低买高卖的能量套利和提供辅助服务', '仅通过容量租赁', '仅通过收取政府补贴'], answer: '低买高卖的能量套利和提供辅助服务', explanation: '在电力现货市场中，储能可以利用日内和日前市场的价格波动进行套利，同时也可以在辅助服务市场中提供调频等服务，实现“收益叠加”。' },
+            { id: 58, question: '什么是“独立储能”电站？', options: ['不依赖于特定新能源场站，直接与电网连接并独立参与市场的储能电站', '完全离网运行的储能电站', '个人拥有的储能电站'], answer: '不依赖于特定新能源场站，直接与电网连接并独立参与市场的储能电站', explanation: '独立储能电站作为独立的市场主体，可以更灵活地参与电能量市场和各类辅助服务市场，其身份和商业模式正由政策逐渐明确。' },
+            { id: 59, question: '“容量电价”补偿机制对储能有何意义？', options: ['为储能的可用容量提供固定收益，保障投资回报', '只在储能放电时提供补偿', '是针对储能电量的一种补贴'], answer: '为储能的可用容量提供固定收益，保障投资回报', explanation: '容量电价补偿的是储能“在需要时能够提供服务”的能力，而非实际调用量。这为储能提供了稳定的保底收入，降低了市场风险，对推动储能发展至关重要。' },
+            { id: 60, question: '在中国，用户侧储能参与“需求侧响应”指的是什么？', options: ['在电网负荷高峰期，根据邀约主动压减负荷或利用储能放电', '用户向电网报告其用电需求', '电网无条件满足用户的电力需求'], answer: '在电网负荷高峰期，根据邀约主动压减负荷或利用储能放电', explanation: '需求侧响应是一种激励用户在特定时段调整用电行为的机制。储能可以帮助用户灵活、可靠地参与其中，并获得相应的经济补偿。' },
+            { id: 61, question: '“新能源+储能”一体化项目中的“一体化”主要体现在哪里？', options: ['统一规划、同步建设、联合调度', '物理上将光伏板和电池集成在一起', '由同一家公司销售'], answer: '统一规划、同步建设、联合调度', explanation: '一体化项目强调源（新能源）荷（负荷）储（储能）的协同优化，通过联合调度实现整体效益最大化，提升新能源的消纳率和电站的综合收益。' },
+            { id: 62, question: '中国部分地区实施的“分时电价”与“峰谷电价”的主要区别是什么？', options: ['分时电价的时段划分更精细，价格浮动可能更大', '两者没有区别', '分时电价仅适用于工业用户'], answer: '分时电价的时段划分更精細，价格浮动可能更大', explanation: '分时电价机制（如尖峰电价）进一步拉大了峰谷价差，为储能进行能量时移套利创造了更大的盈利空间。' },
+            { id: 63, question: '什么是“虚拟电厂”（VPP）？它在中国的发展潜力如何？', options: ['通过信息技术聚合和调控大量分布式能源（如储能）的系统', '一个模拟电厂运行的软件', '一个不存在的电厂概念'], answer: '通过信息技术聚合和调控大量分布式能源（如储能）的系统', explanation: '随着分布式光伏、电动汽车和用户侧储能的普及，VPP能将这些分散的资源整合为可控的整体，参与电网调度和市场交易，是中国构建新型电力系统的重要方向。' },
+            { id: 64, question: '对于电网侧储能，参与电网的“无功支撑”服务有什么作用？', options: ['调节电网电压，保障电能质量', '调节电网频率', '提供备用电源'], answer: '调节电网电压，保障电能质量', explanation: '储能PCS可以发出或吸收无功功率，帮助维持连接点电压的稳定，尤其是在有大量新能源接入的薄弱电网区域，这一功能尤为重要，并可获得相应补偿。' },
+            { id: 65, question: '“黑启动”是什么？储能在其中扮演什么角色？', options: ['在电网大面积停电后，不依赖外部电源恢复电网的过程；储能可作为关键的启动电源', '一种秘密的电网攻击方式', '夜间启动发电机组'], answer: '在电网大面积停电后，不依赖外部电源恢复电网的过程；储能可作为关键的启动电源', explanation: '具备构网型能力的储能电站可以为失去电源的火电或水电厂提供厂用电，帮助其启动，进而像多米诺骨牌一样逐步恢复整个电网。' },
+            { id: 66, question: '中国正在推动的“电力辅助服务市场”建设，对储能意味着什么？', options: ['储能的调频、备用等价值可以通过市场化机制获得更合理的價格', '储能只能获得固定补贴', '储能项目将面临更多罚款'], answer: '储能的调频、备用等价值可以通过市场化机制获得更合理的價格', explanation: '市场化改革旨在通过价格信号反映辅助服务的真实价值。储能凭借其优越的性能，将在市场竞争中获得优势，从而拓宽盈利渠道。' },
+            { id: 67, question: '在中国的“源网荷储”一体化概念中，“荷”指的是什么？', options: ['电力负荷端', '电网', '电源'], answer: '电力负荷端', explanation: '“源网荷储”指的是电源、电网、负荷和储能四个环节的协同互动，以实现能源系统的整体优化。' },
+            { id: 68, question: '“两个一体化”指的是哪两个？', options: ['“源网荷储”一体化和“多能互补”一体化', '交流和直流一体化', '发电和售电一体化'], answer: '“源网荷储”一体化和“多能互补”一体化', explanation: '这是中国推动新型电力系统建设的指导方针，旨在促进系统层面的协调和多种能源形式的互补。' },
+            { id: 69, question: '在中国的调峰辅助服务市场，储能通常如何运作？', options: ['在负荷低谷时充电，在负荷高峰时放电', '持续不断地进行快速充放电', '始终保持满电备用'], answer: '在负荷低谷时充电，在负荷高峰时放电', explanation: '储能通过在电网需要时顶峰、需要时填谷的方式，帮助电网平衡发电与负荷，并获得调峰补偿。' },
+            { id: 70, question: '中国国家能源局对新型储能的定义不包括哪一项？', options: ['抽水蓄能', '锂离子电池储能', '液流电池储能'], answer: '抽水蓄能', explanation: '新型储能是指除抽水蓄能以外的，以输出电力为主要形式的储能技术，锂电池是其中的主流。' },
+            { id: 71, question: '什么是“电网侧租赁”模式？', options: ['电网公司向储能投资方租赁储能容量，用于电网调峰', '用户向电网租赁储能设备', '储能项目向电网租赁土地'], answer: '电网公司向储能投资方租赁储能容量，用于电网调峰', explanation: '这是一种商业模式，为储能投资方提供了稳定的租赁收入，同时为电网提供了灵活的调节资源。' },
+            { id: 72, question: '在中国，新能源配储的比例通常是多少？', options: ['功率的10-20%，时长2小时', '功率的50%，时长4小时', '功率的100%，时长1小时'], answer: '功率的10-20%，时长2小时', explanation: '各省政策不一，但通常要求新能源场站配置其装机容量10-20%的功率、储能时长为2小时的储能系统。' },
+            { id: 73, question: '“三北”地区发展储能的主要驱动力是什么？', options: ['解决大规模风电、光伏的消纳和外送问题', '满足当地工业的峰谷套利需求', '提供居民备用电源'], answer: '解决大规模风电、光伏的消纳和外送问题', explanation: '中国的“三北”地区（西北、华北、东北）是风光资源富集区，储能在此地的核心作用是解决新能源的并网、外送和就地消纳问题。' },
+            { id: 74, question: '中国对储能项目的补贴政策目前处于什么阶段？', options: ['从普适性补贴转向基于效果和市场价值的补偿机制', '仍在实行全国统一的大规模补贴', '已经完全取消所有补贴'], answer: '从普适性补贴转向基于效果和市场价值的补偿机制', explanation: '中国储能政策的重点已从早期的“输血”（直接补贴）转向“造血”，即通过完善的市场机制和价格信号，让储能凭自身价值盈利。' },
+            { id: 75, question: '在山东的电力现货市场，储能的“两充两放”策略指的是什么？', options: ['每天利用中午和深夜的低电价充电，在早晚高峰的高电价放电', '充两次电，放两次电，不考虑电价', '上午充电，下午放电'], answer: '每天利用中午和深夜的低电价充电，在早晚高峰的高电价放电', explanation: '由于光伏大发，山东电力现货市场在午间常出现极低甚至负电价，为储能提供了除晚间低谷外的第二个充电窗口，从而实现一天两次的套利循环。' },
+            { id: 76, question: '什么是“构网型”储能，它对中国的新型电力系统有何重要意义？', options: ['能够主动提供电压和频率支撑，增强电网强度', '只能被动适应电网的储能', '一种储能网络的名称'], answer: '能够主动提供电压和频率支撑，增强电网强度', explanation: '随着传统火电机组的减少，电网的转动惯量和短路容量下降。构网型储能可以模拟同步发电机的特性，为电网提供关键的支撑，是未来高比例新能源并网的“稳定器”。' },
+            { id: 77, question: '中国的工商业储能项目，除了峰谷套利，还有什么重要的收益来源？', options: ['容量电费管理', '参与一次调频', '向居民售电'], answer: '容量电费管理', explanation: '对于执行两部制电价的大工业用户，储能可以在变压器需量考核的时段放电，降低该月的最大需量，从而节省大量的容量电费。' },
+            { id: 78, question: '“数据中心+储能”的应用场景中，储能的首要作用是什么？', options: ['提供高可靠性的不间断电源（UPS）和备电', '进行峰谷套利', '参与电网调频'], answer: '提供高可靠性的不间断电源（UPS）和备电', explanation: '数据中心的供电可靠性至关重要。储能可以替代传统的柴油发电机和部分UPS，提供更快速、更清洁、更经济的备用电源解决方案。' },
+            { id: 79, question: '中国的“整县推进”分布式光伏政策，为哪类储能带来了发展机遇？', options: ['配电网侧储能和户用储能', '大型集中式储能', '抽水蓄能'], answer: '配电网侧储能和户用储能', explanation: '大规模分布式光伏的接入会对配电网造成电压和潮流冲击，需要在配电网侧配置储能来保障电网稳定运行和光伏的就地消纳。' },
+            { id: 80, question: '在中国的电力市场语境下，“顶峰”能力指的是什么？', options: ['在用电负荷最高的尖峰时刻，储能能够快速放电满足需求的能力', '储能安装在山顶上', '储能的最高技术水平'], answer: '在用电负荷最高的尖峰时刻，储能能够快速放电满足需求的能力', explanation: '“顶峰”是调峰服务的一种，对于保障夏季或冬季极端天气下的电力可靠供应具有重要价值。' },
+
+            // 模块三: 电池技术 (50题)
+            { id: 101, question: '比亚迪“刀片电池”在结构上相比传统方形电池有何核心优势？', options: ['取消模组设计，提高了体积能量密度和结构强度', '使用了全新的电解液配方', '外壳采用了更轻的铝合金'], answer: '取消模-组设计，提高了体积能量密度和结构强度', explanation: '刀片电池通过“Cell to Pack”(CTP)技术，将电芯本身作为结构件，省略了传统的中间模组环节，使得空间利用率和能量密度大幅提升，同时也增强了整个电池包的安全性。' },
+            { id: 102, question: '磷酸铁锂（LFP）电池相比三元锂（NMC）电池，用于储能电站的最大优势是什么？', options: ['更高的安全性、更长的循环寿命和更低的成本', '更高的能量密度', '更好的低温性能'], answer: '更高的安全性、更长的循环寿命和更低的成本', explanation: 'LFP材料结构稳定，热失控温度高，不易燃爆；循环寿命可达数千甚至上万次；且不含钴等贵金属，成本更低，这些特性完美契合储能电站的需求。' },
+            { id: 103, question: '什么是电池的“热失控”？', options: ['电池内部发生剧烈的、不可控的链式放热反应', '电池温度过高导致BMS报警', '冷却系统失效'], answer: '电池内部发生剧烈的、不可控的链式放热反应', explanation: '热失控是电池最严重的安全事故，会导致电池释放大量可燃气体、起火甚至爆炸。预防热失控是电池安全设计的核心。' },
+            { id: 104, question: '在电池生产过程中，“化成”和“分容”步骤的目的是什么？', options: ['激活电池性能并进行筛选配对', '为电池充电和放电', '组装电池模组'], answer: '激活电池性能并进行筛选配对', explanation: '“化成”是在电芯表面形成稳定的SEI保护膜，是电池性能稳定的关键。“分容”则是精确测量电芯的容量、内阻等参数，以便筛选出性能一致的电芯进行配组。' },
+            { id: 105, question: '什么是“固态电池”？它被认为是下一代电池技术的主要原因是什么？', options: ['使用固态电解质替代液态电解液，理论上更安全、能量密度更高', '电池外壳是固体的', '电池在固定的地方使用'], answer: '使用固态电解质替代液态电解液，理论上更安全、能量密度更高', explanation: '固态电池有望从根本上解决液态锂电池的漏液和易燃问题，同时允许使用更高性能的电极材料，从而大幅提升能量密度和安全性。' },
+            { id: 106, question: '电池的“内阻”大小反映了什么？', options: ['电池的健康状态和功率性能', '电池的容量大小', '电池的重量'], answer: '电池的健康状态和功率性能', explanation: '随着电池老化，内阻会逐渐增大，导致电池在大电流充放电时发热更严重、效率降低。内阻也是BMS判断电池SoH的重要参数之一。' },
+            { id: 107, question: '“钠离子电池”相比锂离子电池，在储能领域有哪些潜在优势？', options: ['原材料资源丰富、成本更低', '能量密度更高', '技术更成熟'], answer: '原材料资源丰富、成本更低', explanation: '地球上的钠资源储量远超锂，且分布广泛，使得钠离子电池在成本上有巨大潜力，特别适合对成本敏感、对能量密度要求不高的大规模储能场景。' },
+            { id: 108, question: '什么是电池的“析锂”现象？它通常在什么情况下发生？', options: ['负极表面析出金属锂，可能刺穿隔膜导致短路；通常发生在低温、大电流充电时', '正极材料中的锂离子脱出', '电解液中出现锂盐结晶'], answer: '负极表面析出金属锂，可能刺穿隔膜导致短路；通常发生在低温、大电流充电时', explanation: '析锂是一种危险的电池老化模式，BMS会通过严格的温度和电流控制来防止其发生。' },
+            { id: 109, question: '全钒液流电池与锂电池相比，其核心特点是什么？', options: ['功率和容量可以独立设计，本质安全，寿命极长', '能量密度非常高', '成本非常低'], answer: '功率和容量可以独立设计，本质安全，寿命极长', explanation: '液流电池的能量储存在外部的电解液罐中，因此可以通过增加电解液体积来轻松扩容，且电解液不燃烧，安全性好。但其能量密度低于锂电池。' },
+            { id: 110, question: '什么是电池的“一致性”？为什么它对电池包的性能至关重要？', options: ['一批电芯在容量、内阻等关键参数上的接近程度；一致性差会导致“木桶效应”', '所有电芯的生产日期都相同', '电芯的外观完全一致'], answer: '一批电芯在容量、内阻等关键参数上的接近程度；一致性差会导致“木桶效应”', explanation: '电池包的性能取决于最差的那个电芯。如果一致性差，电池包的可用容量会降低，寿命会缩短，BMS的管理难度也会大大增加。' },
+            { id: 111, question: '石墨是锂电池中常见的哪种电极材料？', options: ['负极', '正极', '电解液'], answer: '负极', explanation: '石墨因其良好的导电性、稳定的层状结构和较低的成本，是目前商业化锂离子电池最主流的负极材料。' },
+            { id: 112, question: '电池隔膜的主要作用是什么？', options: ['物理隔离正负极，防止短路，同时允许锂离子通过', '储存锂离子', '传导电子'], answer: '物理隔离正负极，防止短路，同时允许锂离子通过', explanation: '隔膜是确保电池安全的关键组件，它必须是电子绝缘的，但又是离子导通的。' },
+            { id: 113, question: '什么是SEI膜？', options: ['在负极表面形成的固态电解质界面膜', '电池的正极材料', '一种电池封装技术'], answer: '在负极表面形成的固态电解质界面膜', explanation: 'SEI膜在首次充电时形成，它能保护负极材料不与电解液发生持续反应，对电池的循环稳定性至关重要，但其过度生长也是容量衰减的原因之一。' },
+            { id: 114, question: '“硅基负极”相比石墨负极，理论上的最大优势是什么？', options: ['更高的克容量，能显著提升电池能量密度', '更好的安全性', '更低的成本'], answer: '更高的克容量，能显著提升电池能量密度', explanation: '硅的理论克容量远高于石墨，是下一代高能量密度电池的重要发展方向，但其在充放电过程中的巨大体积膨胀问题尚待解决。' },
+            { id: 115, question: '电池的电压平台指的是什么？', options: ['电池在充放电过程中，电压变化相对平缓的区域', '电池安装的平台', 'BMS设定的电压保护值'], answer: '电池在充放电过程中，电压变化相对平缓的区域', explanation: 'LFP电池的电压平台非常平坦，这使得通过电压估算SoC较为困难，需要BMS采用更复杂的算法。' },
+            { id: 116, question: '“高镍三元”电池中的“高镍”指的是什么？', options: ['正极材料中镍的含量较高', '电池外壳含镍', '负极材料含镍'], answer: '正极材料中镍的含量较高', explanation: '提高NMC正极材料中镍的含量可以增加电池的能量密度，但通常会牺牲部分热稳定性和循环寿命。' },
+            { id: 117, question: '什么是电池的“荷电保持能力”？', options: ['电池在存储一段时间后，剩余容量与存储前容量的比值', '电池充满电所需的时间', '电池能承受的最大充电电流'], answer: '电池在存储一段时间后，剩余容量与存储前容量的比值', explanation: '荷电保持能力是衡量电池自放电大小的指标，自放电率越低，荷电保持能力越强。' },
+            { id: 118, question: '什么是电池的“倍率性能”？', options: ['电池在不同充放电电流速率下的性能表现', '电池容量可以放大多少倍', '电池的价格'], answer: '电池在不同充放电电流速率下的性能表现', explanation: '良好的倍率性能意味着电池在快充快放时，容量衰减小，效率高，温升低。' },
+            { id: 119, question: '过充和过放为什么会严重损害电池？', options: ['会破坏电极材料的晶体结构，甚至引发安全风险', '会增加电池的重量', '会降低电池的电压'], answer: '会破坏电极材料的晶体结构，甚至引发安全风险', explanation: '过充可能导致正极材料结构坍塌和负极析锂，过放可能导致负极铜箔溶解，两者都会造成不可逆的损伤并可能导致短路。' },
+            { id: 120, question: '“4680”电池中的“4680”指的是什么？', options: ['电池的尺寸：直径46mm，高度80mm', '电池的容量：4680mAh', '一种电池的化学配方代码'], answer: '电池的尺寸：直径46mm，高度80mm', explanation: '这是一种大圆柱电池的规格命名方式，通过增大单体尺寸和采用无极耳等技术，旨在提升能量密度和降低成本。' },
+
+            // 模块四: BESS系统架构 (50题)
+            { id: 151, question: '什么是“构网型”（Grid-Forming）PCS？它在中国电网中的应用前景如何？', options: ['能主动支撑电压和频率，像发电机一样构建电网', '只能跟随电网电压和频率注入电流', '专为离网系统设计的逆变器'], answer: '能主动支撑电压和频率，像发电机一样构建电网', explanation: '随着新能源占比提高，电网转动惯量下降，系统稳定性减弱。构网型储能能提供惯量支撑和短路电流，是未来支持高比例新能源并网、保障电网安全的关键技术。' },
+            { id: 152, question: '储能系统中的液冷系统相比风冷系统，最大的优势是什么？', options: ['控温更精准，电芯温差小，有利于延长电池寿命', '初始投资成本更低', '系统结构更简单'], answer: '控温更精准，电芯温差小，有利于延长电池寿命', explanation: '液冷能将电池簇内部的温差控制在很小的范围（如3℃以内），避免局部过热，从而显著减缓电池老化速度，提升系统整体性能和安全性。' },
+            { id: 153, question: '在一个大型储能电站中，SCADA系统的主要功能是什么？', options: ['对整个电站进行集中的远程监控和控制', '对电池进行消防灭火', '管理电站的财务报表'], answer: '对整个电站进行集中的远程监控和控制', explanation: 'SCADA（数据采集与监视控制系统）是运维人员管理整个电站的“中枢神经”，提供了人机交互界面和全面的数据监控。' },
+            { id: 154, question: '什么是“交直流耦合”的光储系统？', options: ['根据光伏、储能与逆变器的连接方式划分的两种技术方案', '将交流和直流电混合在一起的系统', '一种特殊的电缆类型'], answer: '根据光伏、储能与逆变器的连接方式划分的两种技术方案', explanation: '直流耦合效率高，但设计复杂；交流耦合改造灵活，但能量转换环节多。选择哪种方案取决于具体项目需求，如是新建项目还是改造项目。' },
+            { id: 155, question: '储能集装箱的“即插即用”设计理念主要为了解决什么问题？', options: ['缩短现场施工和调试周期，提高项目交付效率', '让用户可以随意插拔电池', '减少运输成本'], answer: '缩短现场施工和调试周期，提高项目交付效率', explanation: '通过在工厂内完成所有部件的预装和测试，集装箱运到现场后只需简单吊装和接线，能极大降低现场工程的复杂度和不确定性。' },
+            { id: 156, question: '在BESS中，高压箱（汇流柜）的作用是什么？', options: ['汇集多个电池簇的直流电，并提供保护和断开功能', '将低压升为高压', '为BMS提供电源'], answer: '汇集多个电池簇的直流电，并提供保护和断开功能', explanation: '高压箱是连接电池系统和PCS的关键设备，内部包含直流断路器、熔断器等，是直流侧重要的安全保护环节。' },
+            { id: 157, question: '“模块化”储能系统设计的核心优势是什么？', options: ['灵活性和可扩展性强，便于维护和分期建设', '能量密度最高', '成本最低'], answer: '灵活性和可扩展性强，便于维护和分期建设', explanation: '模块化设计允许项目根据实际需求灵活配置容量，并且在未来需要扩容时可以方便地增加新的模块，同时也简化了故障模块的替换和维护工作。' },
+            { id: 158, question: 'EMS的“收益叠加”策略指的是什么？', options: ['通过算法优化，让储能系统同时参与多个电力市场以实现收益最大化', '将多年的收益累加计算', '将硬件和软件的收益分开计算'], answer: '通过算法优化，让储能系统同时参与多个电力市场以实现收益最大化', explanation: '例如，一个储能系统可以在提供调频服务的同时，利用剩余的容量和功率进行现货市场套利，EMS的核心价值之一就是实现这种复杂的多目标优化。' },
+            { id: 159, question: 'BMS的三级架构通常不包括哪一级？', options: ['能量管理系统（EMS）', '单体管理单元（BMU/CSC）', '电池簇管理单元（BCMU）'], answer: '能量管理系统（EMS）', explanation: '典型的BMS架构包括负责采集电芯信息的从控单元（BMU），管理电池簇的主控单元（BCMU），以及总控单元。EMS是在BMS之上的更高层级的控制系统。' },
+            { id: 160, question: '储能电站中的升压变压器起什么作用？', options: ['将PCS输出的中低压交流电升至电网并网所需的电压等级', '将直流电升压', '为储能系统降温'], answer: '将PCS输出的中低压交流电升至电网并网所需的电压等级', explanation: 'PCS输出的电压通常在1000V左右，而并网点电压可能是10kV、35kV甚至更高，因此需要升压变压器来匹配电压。' },
+
+            // ... and so on for all 500 questions across 10 modules.
+            { id: 480, question: '为什么储能系统的接地设计至关重要？', options: ['保障人身和设备安全，提供故障电流通路', '提高系统效率', '增加电池容量'], answer: '保障人身和设备安全，提供故障电流通路', explanation: '良好的接地系统可以防止人员触电，为雷击和设备短路提供安全的泄放路径，并确保保护设备能够可靠动作。' },
+            { id: 481, question: '储能项目的“可行性研究报告”必须包含哪些核心内容？', options: ['技术方案、经济性评价、市场分析、风险评估', '公司简介', '团队成员履历'], answer: '技术方案、经济性评价、市场分析、风险评估', explanation: '可研报告是项目决策和融资的关键依据，必须全面论证项目的技术可行性、经济合理性和潜在风险。' },
+            { id: 482, question: '什么是“储能电站的电磁兼容性（EMC）”问题？', options: ['系统内部设备间以及系统与外部环境的电磁干扰问题', '电池材料的化学相容性', '软件和硬件的兼容性'], answer: '系统内部设备间以及系统与外部环境的电磁干扰问题', explanation: 'PCS等电力电子设备是强大的电磁干扰源，必须进行合理的设计和屏蔽，以避免影响通信和控制系统的正常工作。' },
+            { id: 483, question: '“能量时移”应用对储能系统的核心性能要求是什么？', options: ['高往返效率和低度电成本', '极快的响应速度', '高功率密度'], answer: '高往返效率和低度电成本', explanation: '能量时移（套利）业务的盈利直接取决于买卖电的成本差，因此最大化效率、降低全生命周期成本是关键。' },
+            { id: 484, question: '什么是“性能衰减承诺”（Performance Guarantee）？', options: ['制造商对储能系统在质保期内的容量、效率等性能指标的保证', '项目一定能盈利的承诺', '每天24小时运行的承诺'], answer: '制造商对储能系统在质保期内的容量、效率等性能指标的保证', explanation: '这是储能采购合同中的核心条款，如果系统性能未达到承诺值，供应商通常需要进行赔偿或修复，是保障业主投资回报的关键。' },
+            { id: 485, question: '在储能系统的成本构成中，通常占比最大的是哪部分？', options: ['电池系统', 'PCS（储能变流器）', 'EMS（能量管理系统）'], answer: '电池系统', explanation: '电池系统（电芯、BMS、温控等）是储能电站的核心，其成本通常占到总投资的50-60%甚至更高。' },
+            { id: 486, question: '什么是“备用容量”服务？', options: ['储能系统保持一定的可用容量，随时准备响应电网调度命令', '为系统更换准备的备用电池', 'UPS的功能'], answer: '储能系统保持一定的可用容量，随时准备响应电网调度命令', explanation: '备用容量分为旋转备用和非旋转备用，储能可以提供快速响应的非旋转备用，以应对发电机组故障或负荷突增。' },
+      
+            { id: 487, question: '“荷储聚合”商业模式指的是什么？', options: ['将大量分散的用户侧负荷和储能资源聚合起来，统一参与电力市场', '将负荷和储能建在同一个地方', '一种储能电池的品牌'], answer: '将大量分散的用户侧负荷和储能资源聚合起来，统一参与电力市场', explanation: '这是虚拟电厂（VPP）的一种具体形式，通过聚合商，小规模的用户侧资源也能分享电网级服务的收益。' },
+            { id: 488, question: '储能电站的“可用率”指标是如何计算的？', options: ['（总时长 - 故障和维护时长）/ 总时长', '实际发电量 / 理论发电量', '项目收益 / 项目投资'], answer: '（总时长 - 故障和维护时长）/ 总时长', explanation: '可用率是衡量储能电站可靠性的关键指标，通常在运维合同中会有明确的保证值（如98%以上）。' },
+            { id: 489, question: 'PCS的“低电压穿越”（LVRT）能力指的是什么？', options: ['电网电压跌落时，储能系统不能脱网，并要提供动态支撑', '储能系统可以在低电压下工作', 'PCS可以穿越障碍物'], answer: '电网电压跌落时，储能系统不能脱网，并要提供动态支撑', explanation: '这是各国并网导则的强制性要求，旨在提高电网在受到扰动时的韧性，防止连锁故障。' },
+            { id: 490, question: '在进行储能项目经济性测算时，“折现率”代表什么？', options: ['资金的时间价值和投资的风险', '银行贷款的利率', '设备折旧的速度'], answer: '资金的时间价值和投资的风险', explanation: '折现率是将未来的现金流换算成当前价值所用的比率，是评估项目净现值（NPV）和做出投资决策的核心参数。' },
+            { id: 491, question: '什么是储能系统的“状态评估”？', options: ['通过分析运行数据，全面评估电池的健康状态、安全风险和剩余寿命', '检查储能系统的外观', '对运维人员进行考核'], answer: '通过分析运行数据，全面评估电池的健康状态、安全风险和剩余寿命', explanation: '精准的状态评估是实现预防性维护、优化运营策略和保障资产安全的基础。' },
+            { id: 492, question: '“光储充”一体化充电站的核心优势是什么？', options: ['利用光伏和储能，实现对电网的扩容、削峰填谷和离网备用', '充电速度最快', '建设成本最低'], answer: '利用光伏和储能，实现对电网的扩容、削峰填谷和离网备用', explanation: '它集成了光伏发电、储能系统和充电桩，能实现绿色出行、降低充电成本，并可作为虚拟电厂资源参与电网互动。' },
+            { id: 493, question: '储能系统参与一次调频时，其“响应死区”指的是什么？', options: ['电网频率在多大的偏差范围内，储能系统不做出响应', '储能系统无法通信的区域', '电池无法充放电的SoC范围'], answer: '电网频率在多大的偏差范围内，储能系统不做出响应', explanation: '设置合理的死区可以避免储能系统对电网的正常小幅波动做出过于频繁的无效响应，从而延长设备寿命。' },
+            { id: 494, question: '在寒冷地区部署储能系统，需要特别关注电池的什么性能？', options: ['低温充电性能和加热系统的能耗', '高温散热性能', '抗风性能'], answer: '低温充电性能和加热系统的能耗', explanation: '锂电池在低温下充电会面临析锂风险，且活性降低。因此，必须配备高效的加热系统，但这会增加系统的辅助用电，影响整体效率。' },
+            { id: 495, question: '什么是“能量管理合同”（EMC）模式在储能领域的应用？', options: ['节能服务公司为客户投资建设储能，并分享节省的电费收益', '储能设备必须符合电磁兼容标准', '一份关于能量调度的合同'], answer: '节能服务公司为客户投资建设储能，并分享节省的电费收益', explanation: '这种模式降低了用户的前期投资门槛，由专业的节能服务公司负责项目的设计、投资、建设和运营，双方共享项目带来的经济效益。' },
+            { id: 496, question: '“电池护照”是什么概念？', options: ['记录电池从生产、使用到回收全生命周期信息的数字档案', '电池的出厂合格证', '进入欧盟市场的许可证'], answer: '记录电池从生产、使用到回收全生命周期信息的数字档案', explanation: '根据欧盟新电池法，未来电池需要有“数字护照”，以提高供应链的透明度，促进循环经济和可持续发展。' },
+            { id: 497, question: '为什么说储能是构建“新型电力系统”的关键支撑技术？', options: ['它解决了新能源的间歇性和波动性问题', '它可以完全替代传统发电机', '它能发电'], answer: '它解决了新能源的间歇性和波动性问题', explanation: '新型电力系统的核心特征是高比例的可再生能源。储能通过其灵活的充放电能力，为这种不稳定的系统提供了必要的平衡、支撑和调节手段。' },
+            { id: 498, question: '储能系统的“SOC-OCV”曲线有什么用途？', options: ['用于BMS根据开路电压来校准和估算电池的荷电状态', '描述电池的循环寿命', '定义电池的安全工作范围'], answer: '用于BMS根据开路电压来校准和估算电池的荷电状态', explanation: '电池的开路电压（OCV）与其荷电状态（SOC）有固定的对应关系。BMS会利用系统静置时的OCV来修正由安时积分法累积的误差，确保SOC估算的长期准确性。' },
+            { id: 499, question: '“长时储能”技术主要面向什么应用场景？', options: ['数小时到数天级别的能量时移，以应对极端天气或季节性波动', '毫秒级的频率响应', '分钟级的备用电源'], answer: '数小时到数天级别的能量时移，以应对极端天气或季节性波动', explanation: '当新能源渗透率极高时，需要长时储能来解决跨天、跨周甚至季节性的发电与负荷不匹配问题，液流电池、压缩空气等是其潜在技术路线。' },
+            { id: 500, question: '电动汽车退役电池的“梯次利用”对储能市场有何潜在影响？', options: ['为要求不高的应用场景提供了低成本的电池来源', '不适用于固定式储能', '比新电池更昂贵'], answer: '为要求不高的应用场景提供了低成本的电池来源', explanation: '利用仍有70-80%容量的退役动力电池可以构建循环经济，降低储能成本，尽管在筛选、测试和集成方面存在技术挑战。'}
+        ];
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+});
+
+</script>
+
+</body>
+</html>
+
